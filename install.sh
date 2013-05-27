@@ -39,7 +39,7 @@ if [ ! -f README.md ]; then
 	exit 1
 fi
 #copy files over using sudo, compare to our files and if different show a diff and ask if you want to overwrite. save the original to a backup first before overwriting.
-for i in acpi pm polkit-1 rc.local
+for i in acpi pm polkit-1 rc.local initramfs-tools
 do
 #copy a directory 
 if [ -d $i ]; then

@@ -21,3 +21,5 @@ in particular it will:
 * not necessarily a thinkpad specifc thing but enable manual configuration of interfaces in network manager by using a policykit rule.
 * add ACPI event script to handle mute button/LED
 * modify /etc/rc.local to mute the mic and light the mute LED on boot, and also set up the battery charge thresholds if they have changed back to the defaults.
+* add aesni-intel, xts and acpiphp to /etc/initramfs-tools/modules
+
