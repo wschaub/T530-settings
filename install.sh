@@ -71,6 +71,19 @@ if [ -f $i ]; then
 fi
 done
 #XXX! implement editing /etc/default/grub here.
+# setup fingerprint-gui
+sudo apt-add-repository ppa:fingerprint/fingerprint-gui
+sudo apt-get update
+sudo apt-get install libbsapi policykit-1-fingerprint-gui fingerprint-gui
+#find location of libbsapi.so and copy our version there.
+bsapi=$(dpkg -L libbsapi | grep libbsapi.so)
+arch=$(uname -m)
+if [ "$arch" = "x86_64" ]; then
+	sudo cp fingerprint/lib64/libbsapi.so $bsapi
+else
+	sudo cp fingerprint/lib/libbsapi.so $bsapi
+fi
+sudo cp fingerprint/40-libbsapi.rules /lib/udev/rules.d/
 #patch kernel and install battery utility.
 sudo apt-get install build-essential linux-headers-generic linux-source git patch
 if [ ! -d tpacpi-bat ]; then
