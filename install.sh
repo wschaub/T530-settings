@@ -48,7 +48,7 @@ if [ -d $i ]; then
 	do
 		if [ ! -d /etc/$f ]; then
 			echo /etc/$f does not exist creating it.
-			sudo mkdir -p $f
+			sudo mkdir -p /etc/$f
 		fi
 	done
 #copy over any files next.
