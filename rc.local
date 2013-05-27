@@ -1,0 +1,38 @@
+#!/bin/sh 
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+#launch dmeventd
+/sbin/dmeventd
+#mute microphone on boot
+INPUT_DEVICE="'Capture'"
+MICMUTE=/sys/devices/platform/thinkpad_acpi/leds/tpacpi::micmute/brightness
+if amixer sget $INPUT_DEVICE,0 | grep '\[on\]' ; then
+	amixer sset $INPUT_DEVICE,0 toggle
+	echo 1 > $MICMUTE
+else
+#already muted, restore LED state
+	echo 1 > $MICMUTE
+fi
+#Set up battery charge threshold only if it diverges from the norm
+if [ "40" = "$(tpacpi-bat -g ST 1 | awk '{ print $1 }')" ]; then
+	echo 'Battery charge start threshold already at 40 percent'
+else
+	echo 'Setting battery charge start threshold to 40 precent'
+	tpacpi-bat -s ST 0 40
+fi
+if [ "80" = "$(tpacpi-bat -g SP 1 | awk '{ print $1 }')" ]; then
+	echo 'Battery stop charge threshold already at 80 percent'
+else
+	echo 'Setting Battery stop charge threshold to 80 percent'
+	tpacpi-bat -s SP 0 80
+fi
+exit 0

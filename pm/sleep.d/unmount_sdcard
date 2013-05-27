@@ -1,0 +1,26 @@
+# Drop to: /etc/pm/sleep.d
+# Use this script to prevent data loss on mounted MMC/SD
+# cards. It syncs data and umounts all mmcblk devices prior to
+# suspend, and cancels suspend if umounting was not possible
+# (i.e: something locks a file)
+case "${1}" in
+    hibernate|suspend)
+        /bin/sync
+        for drive in $( /bin/ls /dev/mmcblk?p* ); do
+            /bin/umount ${drive} > /dev/null
+            # If umount failed: abort suspend
+            if [ $? -gt 0 ]; then
+            # Test if device keeps mounted. Previous command could fail
+            # (i.e device was not mounted) with a non-stopper
+            # problem for the suspend process.
+            /bin/mount | /bin/grep ${drive}
+            if [ $? -eq 0 ]; then
+                exit 1
+            fi
+            fi
+        done
+        ;;
+#    resume|thaw)
+##       Do nothing. All devices will be automatically mounted again.   
+#       ;;
+esac

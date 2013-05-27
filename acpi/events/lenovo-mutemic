@@ -1,0 +1,2 @@
+event=ibm/hotkey HKEY 00000080 0000101b
+action=/etc/acpi/lenovo-mutemic.sh
