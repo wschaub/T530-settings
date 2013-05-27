@@ -1,0 +1,1 @@
+SUSPEND_MODULES="uhci_hd button ehci_hd iwlwifi"
