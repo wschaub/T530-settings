@@ -1,0 +1,17 @@
+#!/bin/sh 
+#Set up battery charge threshold only if it diverges from the norm
+if [ "40" = "$(tpacpi-bat -g ST 1 | awk '{ print $1 }')" ]; then
+	echo 'Battery charge start threshold already at 40 percent'
+else
+	echo 'Battery charge start threshold set to something else!'
+	tpacpi-bat -v -g ST 1
+	exit 1
+fi
+if [ "80" = "$(tpacpi-bat -g SP 1 | awk '{ print $1 }')" ]; then
+	echo 'Battery stop charge threshold already at 80 percent'
+else
+	echo 'Battery stop charge threshold set to something else!'
+	tpacpi-bat -v -g SP 1
+	exit 1
+fi
+exit 0

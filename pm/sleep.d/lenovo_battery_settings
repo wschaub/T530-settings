@@ -1,0 +1,16 @@
+#!/bin/sh 
+#if we boot into windows and resume from hibernate in linux later windows will
+#have overridden our battery charge preferences.
+PATH=$PATH:/usr/local/bin
+export PATH
+case "${1}" in
+    thaw)
+#only bother to reset the charge state after resuming from hibernate
+#if resetting the state from a resume from sleep is desired add |resume to the 
+#case above
+testbat
+if [ $? -ne 0 ]; then
+	tpacpi-bat -s ST 0 40
+	tpacpi-bat -s SP 0 80
+fi
+esac
