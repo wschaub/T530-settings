@@ -1,0 +1,66 @@
+#!/bin/sh 
+PATH=$PATH:/usr/local/bin
+export PATH
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+#launch dmeventd
+/sbin/dmeventd
+#The nvidia driver somehow fucks with ACPI, if we are running the nvidia driver
+#force reload of the thinkpad_acpi driver.
+#we also need to hack around various shit done by alternatives when we are
+#booted into integrated graphics mode so we can easily switch back and forth
+#by changing the BIOS setting.  This should fix this case too... UGH!
+lsmod | grep -i nvidia 2>&1 >/dev/null
+if [ $? -eq 0 ]; then
+#NVIDIA workarounds
+	service lightdm stop
+	sleep 2
+	(cd /etc/alternatives; rm -f x86_64-linux-gnu_xorg_extra_modules; ln -s nvidia_xorg_modules x86_64-linux-gnu_xorg_extra_modules)
+	(cd /etc/alternatives; rm -f x86_64-linux-gnu_gl_conf; ln -s nvidia_x86_64_gl_conf x86_64-linux-gnu_gl_conf)
+	(cd /etc/alternatives; rm -f i386-linux-gnu_gl_conf; ln -s nvidia_i386_gl_conf i386-linux-gnu_gl_conf)
+	ldconfig
+	service lightdm start
+	sleep 3
+	modprobe -r thinkpad_acpi
+	modprobe thinkpad_acpi
+	service acpid restart
+else
+#Undo NVIDIA hacks
+	if [ "default_xorg_modules" = "$(readlink /etc/alternatives/x86_64-linux-gnu_xorg_extra_modules)" ]; then
+		true
+	else
+		(cd /etc/alternatives; rm -f x86_64-linux-gnu_xorg_extra_modules; ln -s default_xorg_modules x86_64-linux-gnu_xorg_extra_modules)
+		(cd /etc/alternatives; rm -f x86_64-linux-gnu_gl_conf; ln -s default_x86_64_gl_conf x86_64-linux-gnu_gl_conf)
+		(cd /etc/alternatives; rm -f i386-linux-gnu_gl_conf; ln -s default_i386_gl_conf i386-linux-gnu_gl_conf)
+		ldconfig
+		service lightdm stop
+		sleep 1
+		service lightdm start
+	fi
+fi
+#mute microphone on boot
+INPUT_DEVICE="'Capture'"
+MICMUTE=/sys/devices/platform/thinkpad_acpi/leds/tpacpi::micmute/brightness
+if amixer sget $INPUT_DEVICE,0 | grep '\[on\]' ; then
+	amixer sset $INPUT_DEVICE,0 toggle
+	echo 1 > $MICMUTE
+else
+#already muted, restore LED state
+	echo 1 > $MICMUTE
+fi
+#Set up battery charge threshold only if it diverges from the norm
+testbat
+if [ $? -ne 0 ]; then
+	tpacpi-bat -s ST 0 40
+	tpacpi-bat -s SP 0 80
+fi
+exit 0
