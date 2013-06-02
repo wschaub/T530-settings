@@ -10,6 +10,8 @@
 # bits.
 #
 # By default this script does nothing.
+PATH=$PATH:/usr/local/bin
+export PATH
 #launch dmeventd
 /sbin/dmeventd
 #mute microphone on boot
