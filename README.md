@@ -1,7 +1,7 @@
 T530-settings
 =============
 
-T530 specific settings for Ubuntu 12.04LTS
+T530 specific settings for Ubuntu 12.04LTS (eSATA fixes branch)
 
 This is a simple script and a collection of config files
 that will take a stock Ubuntu 12.04 LTS system and set up thinkpad
@@ -22,4 +22,4 @@ in particular it will:
 * add ACPI event script to handle mute button/LED
 * modify /etc/rc.local to mute the mic and light the mute LED on boot, and also set up the battery charge thresholds if they have changed back to the defaults.
 * add aesni-intel, xts and acpiphp to /etc/initramfs-tools/modules
-
+* add fixes to libata-pmp to allow sil3826 based port multipliers to work properly. I used these patches to make my Sans Digital TR4M+BNC eSATA JBOD enclosure to work with my startech.com ECESATA1 card. 
