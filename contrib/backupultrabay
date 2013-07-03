@@ -1,0 +1,56 @@
+#!/bin/bash
+BACKUPMNT=/media/JBODbackup
+BACKUPDIR=ultrabay
+sanity_check() {
+    if mountpoint -q $BACKUPMNT; then
+        if [ ! -d $BACKUPMNT/$BACKUPDIR ]; then
+            echo "$BACKUPMNT/$BACKUPDIR does not exist!"
+            exit 1
+        fi
+    else
+        echo "Backup filesystem is not mounted at $BACKUPMNT"
+        exit 1
+    fi
+    return 0
+}
+prompt() {
+    echo -n "$1 (Y/N):"
+    read yn
+    case $yn in
+        y|Y)
+        return 0;;
+        *) return 1;;
+    esac
+}
+
+#backup unix filesystems, uses bash specific associtive array voodoo
+backup_filesystems() {
+    RSYNC="rsync --delete -avpPx"
+    #define filesystems here along with their target labels
+    FSLABELS="ultrabay-main"
+    declare -A FSMOUNTS
+    FSMOUNTS=([ultrabay-main]=/media/main)
+    for i in $FSLABELS 
+    do
+       MNT=${FSMOUNTS[$i]}
+       if mountpoint -q $MNT; then
+          SRC=$MNT
+          DST=$BACKUPMNT/$BACKUPDIR/$i
+          if prompt "backup $SRC to $DST?"; then
+              sudo $RSYNC $SRC/ $DST
+          fi
+       else
+           echo "$i not mounted"
+           continue
+       fi
+    done
+}
+
+#Main
+sanity_check
+backup_filesystems
+if [ $? -eq 0 ]; then
+    echo "backup_filesystems completed successfully"
+else
+    echo "backup_filesystems returned nonzero"
+fi

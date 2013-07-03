@@ -1,0 +1,141 @@
+#!/bin/bash
+BACKUPMNT=/media/JBODbackup
+BACKUPDIR=T530disk
+#Simple sanity check, terminate the script if the backup volume isn't kosher
+sanity_check() {
+    if mountpoint -q $BACKUPMNT; then
+        if [ ! -d $BACKUPMNT/$BACKUPDIR ]; then
+            echo "$BACKUPMNT/$BACKUPDIR does not exist!"
+            exit 1
+        fi
+        if [ ! -d $BACKUPMNT/$BACKUPDIR/raw_partitions ]; then
+            echo "$BACKUPMNT/$BACKUPDIR/raw_partitions does not exist!"
+            exit 1
+        fi
+        if [ ! -f $BACKUPMNT/$BACKUPDIR/partition_table.txt ]; then
+            echo "human readable partition dump $BACKUPMNT/$BACKUPDIR/partition_table.txt does not exist!"
+            exit 1
+        fi
+        if [ ! -f $BACKUPMNT/$BACKUPDIR/partition_table.sgdiskbackup ]; then
+            echo "binary partition table backup $BACKUPMNT/$BACKUPDIR/partition_table.sgdiskbackup does not exist!"
+            exit 1
+        fi
+        if [ ! -d $BACKUPMNT/$BACKUPDIR/linux_filesystems ]; then
+            echo "$BACKUPMNT/$BACKUPDIR/linux_filesystems does not exist!"
+            exit 1
+        fi
+    else
+        echo "Backup filesystem is not mounted at $BACKUPMNT"
+        exit 1
+    fi
+    #Make sure schroot isn't being used
+    for i in /var/lib/schroot/mount/*
+    do
+        if [ -d $i ]; then
+            echo "schroot sessions are running. Please close them"
+            echo "before running this script" 
+            exit 1
+        fi
+    done
+    return 0
+}
+#prompt the user to continue with a message
+prompt() {
+    echo -n "$1 (Y/N):"
+    read yn
+    case $yn in
+        y|Y)
+        return 0;;
+        *) return 1;;
+    esac
+}
+
+#pretty print partition info based on partition_table.txt
+print_partition() {
+    head -6 $BACKUPMNT/$BACKUPDIR/partition_table.txt | tail -1
+    grep "^ $1" $BACKUPMNT/$BACKUPDIR/partition_table.txt
+    return 0
+}
+#compare raw dd image backups with their raw disk partition contents.
+validate_md5() {
+    echo "comparing partition $1 of disk $2 with backup"
+    if [ -f $BACKUPMNT/$BACKUPDIR/raw_partitions/$1.img ]; then
+        if [ ! -f $BACKUPMNT/$BACKUPDIR/raw_partitions/$1.img.md5 ]; then
+            echo "FATAL: md5 file for partition $1 does not exist."
+            exit 1
+        fi
+        echo "backup file for partition $1 does not exist."
+        return 1
+    fi
+    IMGMD5=$(cat $BACKUPMNT/$BACKUPDIR/raw_partitions/$1.img.md5 | awk '{print $1}')
+    PARTMD5=$(sudo md5sum $2$1 | awk '{print $1}')
+    if [ "$IMGMD5" = "$PARTMD5" ]; then
+        echo "partition $1 is unchanged, skipping"
+        return 0
+    else
+        echo "partition $1 has changed, backing up"
+        return 1
+    fi
+}
+
+#backup raw disk partitions to dd images on the backup volume
+#but only if they have changed since the last backup.
+backup_raw() {
+    #Make sure this variable contains only the raw partitions you want to
+    #backup. 
+    PARTS="1 2 3 4"
+    #Make sure this is your root disk device
+    DISK=/dev/sda
+    for i in $PARTS
+    do
+        echo "validating checksums for partition $i"
+        print_partition $i
+        if ! validate_md5 $i $DISK; then
+            if prompt "partition $i on disk $DISK has changed, backup?"; then
+                echo "backing up $DISK$i to $BACKUPMNT/$BACKUPDIR/raw_partitions/$i.img"
+               sudo bash -c "cat $DISK$i | pv -pterb >$BACKUPMNT/$BACKUPDIR/raw_partitions/$i.img" 
+               sudo bash -c "md5sum $BACKUPMNT/$BACKUPDIR/raw_partitions/$i.img >$BACKUPMNT/$BACKUPDIR/raw_partitions/$i.img.md5"
+            fi
+        fi
+    done
+    return 0
+}
+
+#backup unix filesystems, uses bash specific associtive array voodoo
+backup_filesystems() {
+    RSYNC="rsync --exclude=.gvfs --delete -avpPx"
+    #define filesystems here along with their target labels
+    FSLABELS="boot efi T530-root"
+    declare -A FSMOUNTS
+    FSMOUNTS=([boot]=/boot [efi]=/boot/efi [T530-root]=/)
+    for i in $FSLABELS 
+    do
+       MNT=${FSMOUNTS[$i]}
+       if mountpoint -q $MNT; then
+          SRC=$MNT
+          DST=$BACKUPMNT/$BACKUPDIR/linux_filesystems/$i
+          if prompt "backup $SRC to $DST?"; then
+              sudo $RSYNC $SRC/ $DST
+          fi
+       else
+           echo "$i not mounted"
+           continue
+       fi
+    done
+}
+
+#Main
+sanity_check
+if prompt "Backup Raw partitions?"; then
+    
+    if backup_raw; then
+        echo "Raw partitions backed up successfully"
+    else
+        echo "backup_raw returned nonzero"
+    fi
+fi
+if backup_filesystems; then
+    echo "backup_filesystems completed successfully"
+else
+    echo "backup_filesystems returned nonzero"
+fi
