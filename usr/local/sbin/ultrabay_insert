@@ -1,0 +1,73 @@
+#!/bin/sh
+#set -x
+
+# Copyright (C) 2011 by Window Maker Live <wmlive@rumbero.org>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Primary source of inspiration and original code:
+# http://www.thinkwiki.org/wiki/How_to_hotswap_Ultrabay_devices#Script_for_Ultrabay_eject
+# http://www.thinkwiki.org/wiki/Talk:How_to_hotswap_Ultrabay_devices
+
+SCRIPTNAME="$(basename $0)"
+
+COMMONFUNCTIONS=/usr/local/share/ultrabay-scripts/ultrabay_common
+
+if [ -f $COMMONFUNCTIONS ]
+then
+    . $COMMONFUNCTIONS
+else
+    echo File $COMMONFUNCTIONS not found, cannot proceed
+    exit 1
+fi
+
+thinkpad_check
+
+if [ "$1" = "-mkrules" ]
+then
+    create_ultrabay_rules
+    exit 0
+fi
+
+ultrabay_notify_config
+
+ultrabay_rules_check
+
+ultrabay_dock_interface
+
+DEVNODE=$(ultrabay_dev_node)
+
+SCANPATH="$(echo $DEVPATH | cut -d\/ -f6)"
+
+if [ "$(cat $DOCKDEV/docked)" = "1" ] && [ ! -b "$DEVNODE" ]
+then
+    sync
+    echo Scanning UltraBay for new device
+    echo 0 0 0 > /sys/class/scsi_host/$SCANPATH/scan
+    sleep 1
+    DEVNODE=$(ultrabay_dev_node)
+    echo Docking of UltraBay device $DEVNODE successfully completed.
+    [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -u normal -t 10000 "Docking UltraBay device was successful" "The device $DEVNODE is now ready for use."
+    exit 0
+elif [ -b "$DEVNODE" ]
+then
+    echo UltraBay already in use by device "$DEVNODE"
+    [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -u normal -t 10000 "The UltraBay is already occupied" "and currently in use by $DEVNODE."
+    exit 0
+else
+    echo UltraBay device docking failed.
+    echo Try pulling and reinserting the eject lever.
+    [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -u normal -t 10000 "Docking the UltraBay device is not possible:" "Try pulling and reinserting the eject lever."
+    exit 1
+fi

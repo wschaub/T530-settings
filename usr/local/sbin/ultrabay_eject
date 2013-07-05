@@ -1,0 +1,87 @@
+#!/bin/sh
+#set -x
+
+# Copyright (C) 2011 by Window Maker Live <wmlive@rumbero.org>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Primary source of inspiration and original code:
+# http://www.thinkwiki.org/wiki/How_to_hotswap_Ultrabay_devices#Script_for_Ultrabay_eject
+# http://www.thinkwiki.org/wiki/Talk:How_to_hotswap_Ultrabay_devices
+
+SCRIPTNAME="$(basename $0)"
+
+COMMONFUNCTIONS=/usr/local/share/ultrabay-scripts/ultrabay_common
+
+if [ -f $COMMONFUNCTIONS ]
+then
+    . $COMMONFUNCTIONS
+else
+    echo File $COMMONFUNCTIONS not found, cannot proceed
+    exit 1
+fi
+
+thinkpad_check
+
+ultrabay_notify_config
+
+ultrabay_rules_check
+
+ultrabay_device_check
+
+ultrabay_dock_interface
+
+DEVNODE=$(ultrabay_dev_node)
+
+if [ "$(cat $DOCKDEV/docked)" = "0" ]
+then
+    echo No active UltraBay device present, nothing to unregister.
+    [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -t 5000 -u normal "No active UltraBay device present:" "The UltraBay can be safely removed"
+elif [ -d $ULTRABAY_SYSDIR ]
+then
+        # First check if the device is still in use:
+	if [ "$(stat $DEVNODE | grep -c cdrom)" != "0" ] && [ $(mount | grep -c $DEVNODE) != "0" ]
+	then
+	    CDMNTPOINT=$(mount | grep $DEVNODE | awk '{print $3}')
+	    echo Device $DEVNODE is still mounted at $CDMNTPOINT, umount first and try again
+            [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -t 0 -u critical "The UltraBay device $DEVNODE is still mounted at $CDMNTPOINT" "Please do not just pull the device, and return the eject lever back in its place. After that properly umount $DEVNODE from $CDMNTPOINT. Then try to eject the UltraBay device again."
+            exit 1
+	elif [ "$(stat $DEVNODE | grep -c disk)" != "0" ] && [ $(hdparm -z $DEVNODE > /dev/null 2>&1; echo $?) != "0" ]
+	then
+            echo The device $DEVNODE is still in use.
+            [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -t 0 -u critical "The UltraBay device $DEVNODE is still in use" "Please do not just pull the device, as this could cause file system corruption and hang the system. Move the eject lever back in place, and try to manually stop all processes still accessing the device. Then try to eject the UltraBay device again."
+            exit 1
+        fi
+        sleep 1
+        sync
+        logger "$SCRIPTNAME": UltraBay is occupied, shutting down device path $DEVPATH
+        # Nicely power off the device
+        hdparm -Y $DEVNODE > /dev/null
+        # Let desktop environments notice the umount and let the disk spin down
+        sleep 1
+        # Unregister this SCSI device:
+        echo 1 > $ULTRABAY_SYSDIR/delete
+        # Wait for the bay and the drive to disconnect
+        sleep 1
+        logger "$SCRIPTNAME": Undocking $DOCKDEV
+        # Undocking the UltraBay:
+        echo 1 > $DOCKDEV/undock
+        echo Undocking of $DOCKDEV successfully completed
+        exit 0
+elif [ ! -d $ULTRABAY_SYSDIR ]
+then
+        echo UltraBay is occupied but device path $DEVPATH is incorrect.
+        [ -x "$DESKTOPNOTIFY" ] && $DESKTOPNOTIFYCMD -t 50000 -u critical "Unable to eject the UltraBay device" "The UltraBay appears to be occupied by a device, but the configured udev device path is incorrect.\\n\\nPlease reconfigure the required udev rules by executing the command 'ultrabay_insert -mkrules' and then try again."
+        exit 1
+fi
