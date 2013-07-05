@@ -39,7 +39,7 @@ if [ ! -f README.md ]; then
 	exit 1
 fi
 #copy files over using sudo, compare to our files and if different show a diff and ask if you want to overwrite. save the original to a backup first before overwriting.
-for i in usr acpi pm polkit-1 rc.local initramfs-tools
+for i in acpi pm polkit-1 rc.local initramfs-tools
 do
 #copy a directory 
 if [ -d $i ]; then
@@ -87,6 +87,14 @@ if [ $? -eq 1 ]; then
 	fi
 fi
 sudo cp fingerprint/40-libbsapi.rules /lib/udev/rules.d/
+#install /usr/local/* stuff including ultrabay_scripts
+sudo cp -r usr/local/share/ultrabay-scripts /usr/local/share/
+sudo cp usr/local/bin/* /usr/local/bin/
+sudo cp usr/local/sbin/* /usr/local/sbin/
+#init udev rules for ultrabay_insert/eject scripts.
+if [ ! -f /etc/udev/rules.d/50-thinkpad-ultrabay.rules ]; then
+    sudo /usr/local/sbin/ultrabay_insert -mkrules
+fi
 #patch kernel and install battery utility.
 sudo apt-get install build-essential linux-headers-generic linux-source git patch
 if [ ! -d tpacpi-bat ]; then

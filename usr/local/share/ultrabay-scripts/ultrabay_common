@@ -1,0 +1,282 @@
+# Copyright (C) 2011 by Window Maker Live <wmlive@rumbero.org>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Primary source of inspiration and original code:
+# http://www.thinkwiki.org/wiki/How_to_hotswap_Ultrabay_devices#Script_for_Ultrabay_eject
+# http://www.thinkwiki.org/wiki/Talk:How_to_hotswap_Ultrabay_devices
+
+thinkpad_check ()
+{
+SCRIPTNAME="$(basename $0)"
+if [ "$(grep -ic thinkpad /sys/class/dmi/id/product_version)" = "0" ]
+then
+    logger "$SCRIPTNAME": "This does not appear to be a Thinkpad, thus quitting."
+    echo "This does not appear to be a Thinkpad, thus quitting."
+    exit 0
+fi
+}
+
+thinkpad_smapi_check ()
+{
+SMAPIDIR=/sys/devices/platform/smapi
+
+if [ ! -d $SMAPIDIR ]
+then
+    echo "No SMAPI support detected, cannot proceed."
+    if [ ! -f /lib/modules/$(uname -r)/updates/dkms/tp_smapi.ko ]
+    then
+	echo "No tp_smapi.ko kernel module found for this kernel version."
+	if [ -f /var/lib/dpkg/info/tp-smapi-dkms.list ]
+	then
+	    echo "Execute 'dpkg-reconfigure -plow tp-smapi-dkms' to create the module."
+	    echo "Then enable it with the command 'modprobe tp-smapi' and try again."
+	    exit 1
+	else
+	    echo "This is most likely because tp-smapi-dkms is not installed."
+	    echo "Please run 'apt-get install tp-smapi-dkms' and try again."
+	    exit 1
+	fi
+    fi
+    exit 1
+fi
+}
+
+thinkpad_tpacpi_bat_check ()
+{
+if [ -f /lib/modules/$(uname -r)/updates/dkms/acpi_call.ko ] && [ -x $(/usr/sbin/tpacpi-bat) ]
+then
+    echo "Using acpi_call/tpacpi-bat for battery management is not yet implemented"
+fi
+}
+
+ultrabay_notify_config ()
+{
+export DISPLAY=:0.0 # required for notify-send
+DISP0_USER=$(who | grep tty | grep -m1 \(:0\)$ | awk '{ print $1 }')
+
+if [ "$DISP0_USER" != "" ]
+then
+    DISP0_USER_HOME=$(getent passwd ${DISP0_USER} | cut -d':' -f6)
+    export XAUTHORITY=${DISP0_USER_HOME}/.Xauthority # also required for notify-send
+    DESKTOPNOTIFY=/usr/bin/notify-send
+    if [ "$(basename $0)" = "ultrabay_battery" ] && [ -f /usr/share/icons/battery.png ]
+    then
+        DESKTOPNOTIFYCMD="$DESKTOPNOTIFY --icon /usr/share/icons/battery.png"
+    elif [ -f /usr/share/icons/cogwheels.png ]
+    then
+        DESKTOPNOTIFYCMD="$DESKTOPNOTIFY --icon /usr/share/icons/cogwheels.png"
+    else
+        DESKTOPNOTIFYCMD="$DESKTOPNOTIFY"
+    fi
+fi
+}
+
+ultrabay_battery_interface ()
+{
+BATDEV=$(dirname $(/bin/grep -l battery_bay /sys/devices/platform/dock.?/type))
+if [ -z "$BATDEV" ] || [ ! -d "$BATDEV" ]
+then
+    logger "$SCRIPTNAME": Cannot locate UltraBay battery dock device
+    notify-send -u critical -t 100000 "ThinkPad UltraBay battery dock found" "Cannot locate UltraBay battery dock device"
+    exit 1
+fi
+}
+
+create_ultrabay_rules ()
+{
+ULTRABAYRULES=/etc/udev/rules.d/50-thinkpad-ultrabay.rules
+
+if [ -f $ULTRABAYRULES ]
+then
+    cp -p "$ULTRABAYRULES" "$ULTRABAYRULES"_previous
+fi
+
+# Make sure to exclude primary system disk from ever being recognized as UltraBay device:
+
+if [ "$(mount | grep "on / type" | awk '{print $1}' | grep -c ^/dev/mapper)" = "1" ]
+then
+    PRIMARYSYSDISK=$(mount | grep "on /boot type" | awk '{print $1}' | cut -d "/" -f3 | tr -d [0-9])
+else
+    PRIMARYSYSDISK=$(mount | grep "on / type" | awk '{print $1}' | cut -d "/" -f3 | tr -d [0-9])
+fi
+
+if [ ! -b /dev/"$PRIMARYSYSDISK" ]
+then
+    # Under no circumstance allow an empty value for PRIMARYSYSDISK
+    export PRIMARYSYSDISK=nodevfound
+fi
+
+for UBDEV in $(ls /dev/sr0 /dev/sd? 2>/dev/null | grep -v /dev/$PRIMARYSYSDISK)
+do
+    if [ "$(echo $UBDEV)" != "" ] && [ -b $UBDEV ]
+    then
+        [ "$(udevadm info --query=path --name=$UBDEV | sed 's!/block/...$!!' | grep -vE '/usb./')" != "" ] && \
+        DEVPATH=$(udevadm info --query=path --name=$UBDEV | sed 's!/block/...$!!')
+    fi
+done
+
+UBDOCKDEV=$(/bin/grep -l ata_bay /sys/devices/platform/dock.?/type | cut -d\/ -f5)
+UBBATTDEV=$(/bin/grep -l battery_bay /sys/devices/platform/dock.?/type | cut -d\/ -f5)
+
+if [ -b "$UBDEV" ] && [ -n "$DEVPATH" ] && [ -d /sys$DEVPATH ] && [ -n "$UBDOCKDEV" ]
+then
+    cat > $ULTRABAYRULES << UBRULESCREATION
+
+# To update this configuration file with the correct DEVPATH and KERNEL
+# values matching your actual ThinkPad model, insert the UltraBay optical
+# or hard disk drive and reboot the ThinkPad to have the inserted UltraBay
+# device properly recognized by the system. Once done, just execute the
+# command 'ultrabay_insert -mkrules', in order to recreate this file with
+# the appropriate values.
+
+SUBSYSTEMS=="block", DEVPATH=="$DEVPATH", ENV{UDISKS_SYSTEM_INTERNAL}="0"
+ENV{EVENT}=="undock", KERNEL=="$UBDOCKDEV", ACTION=="change", SUBSYSTEM=="platform", ATTR{type}=="ata_bay", RUN+="/usr/sbin/ultrabay_eject"
+ENV{EVENT}=="dock", KERNEL=="$UBDOCKDEV", ACTION=="change", SUBSYSTEM=="platform", ATTR{type}=="ata_bay", RUN+="/usr/sbin/ultrabay_insert"
+ENV{EVENT}=="undock", KERNEL=="$UBBATTDEV", ACTION=="change", SUBSYSTEM=="platform", ATTR{type}=="battery_bay", RUN+="/usr/sbin/ultrabay_battery"
+ENV{EVENT}=="dock", KERNEL=="$UBBATTDEV", ACTION=="change", SUBSYSTEM=="platform", ATTR{type}=="battery_bay", RUN+="/usr/sbin/ultrabay_battery"
+UBRULESCREATION
+    /sbin/udevadm control --reload-rules
+    echo Successfully created $ULTRABAYRULES
+else
+    cat << NODEVFOUND
+
+    No suitable UltraBay device detected: Please insert either the
+    optical disk or the secondary hard disk drive in the UltraBay
+    and reboot the system to have them properly recognized. Then try
+    running the command "ultrabay-insert -mkrules" again.
+
+NODEVFOUND
+fi
+}
+
+# Check for the presence of a valid /etc/udev/rules.d/50-thinkpad-ultrabay.rules file
+
+ultrabay_rules_check ()
+{
+ULTRABAYRULES=/etc/udev/rules.d/50-thinkpad-ultrabay.rules
+
+if [ -s $ULTRABAYRULES ] && [ "$(grep -c 'DEVPATH==' $ULTRABAYRULES)" = "1" ]
+then
+   DEVPATH="$(grep 'DEVPATH==' $ULTRABAYRULES | awk '{print $2}' | cut -d\" -f2)"
+elif [ -s $ULTRABAYRULES ] && [ "$(grep -c 'DEVPATH==' $ULTRABAYRULES)" != "1" ]
+then
+    cat << INVALIDEVPATHENTRY
+
+    No valid DEVPATH entry found in $ULTRABAYRULES file.
+
+    To define the correct single value for your ThinkPad, reboot with
+    any UltraBay drive inserted, and run "ultrabay-insert -mkrules" to
+    produce a valid configuration file matching your ThinkPad system.
+
+INVALIDEVPATHENTRY
+    exit 1
+elif [ ! -s $ULTRABAYRULES ]
+then
+    logger "$SCRIPTNAME": No $ULTRABAYRULES file found.
+    [ -x "$DESKTOPNOTIFY" ] && "$DESKTOPNOTIFYCMD" "No $ULTRABAYRULES file found." "Unable to automagically determine the UltraBay target device. To recreate the udev rules file required for your ThinkPad model, please reboot with any UltraBay drive inserted, and execute the 'ultrabay-insert \-mkrules' command."
+    exit 1
+fi
+
+if [ "$DEVPATH" != "" ]
+then
+    ULTRABAY_SYSDIR=/sys$DEVPATH
+else
+    cat << TRYAGAIN
+
+    Unable to determine the correct ULTRABAY_SYSDIR value. Try pulling
+    and reinserting the eject lever and repeat this command. If still
+    not sufficient, reboot the ThinkPad to have the inserted UltraBay
+    device properly recognized by the system. Then try again.
+
+TRYAGAIN
+    exit 1
+fi
+}
+
+ultrabay_device_check ()
+{
+if [ "$DEVPATH" = "" ] && [ -b /dev/sr0 ]
+then
+    UDEVTARGET=$(udevadm info --query=path --name=/dev/sr0 | sed 's!/block/...$!!')
+    if [ "$(echo $UDEVTARGET | cut -d\/ -f5 | tr -d [0-9])" = "ata" ]
+    then
+	DEVPATH="$UDEVTARGET"
+    fi
+elif [ "$DEVPATH" = "" ] && [ "$(/bin/ls /dev/sd? 2> /dev/null)" != "" ]
+then
+    for ULTRABAYHDD in $(/bin/ls /dev/sd? | tac)
+    do
+        if [ -b $ULTRABAYHDD ]
+        then
+            UDEVTARGET=$(udevadm info --query=path --name=$ULTRABAYHDD | sed 's!/block/...$!!')
+            if [ "$(echo $UDEVTARGET | cut -d\/ -f5 | tr -d [0-9])" = "ata" ]
+            then
+		DEVPATH=$UDEVTARGET
+    	    elif [ "$DEVPATH" = "" ]
+    	    then
+	        logger "$SCRIPTNAME": $UDEVTARGET is no UltraBay device, thus ignoring it.
+		[ -x "$DESKTOPNOTIFY" ] && "$DESKTOPNOTIFYCMD" "Cannot determine UltraBay device" "Apparently $UDEVTARGET is no UltraBay device, thus ignoring it."
+	    fi
+	    break
+	fi
+    done
+elif [ "$DEVPATH" = "" ]
+then
+    logger "$SCRIPTNAME": Unable to automagically determine the UltraBay target device.
+    [ -x "$DESKTOPNOTIFY" ] && "$DESKTOPNOTIFYCMD" "Cannot determine UltraBay device" "Unable to automagically determine the UltraBay target device. So we are just quitting and doing nothing.\n\nPlease do not pull the device, and just put the eject lever back in place. Pulling out the UltraBay could cause file corruption and possibly hang the system."
+    exit 1
+fi
+
+if [ "$DEVPATH" != "" ]
+then
+    ULTRABAY_SYSDIR=/sys$DEVPATH
+else
+    cat << TRYAGAIN
+
+    Unable to determine the correct ULTRABAY_SYSDIR value. Try pulling
+    and reinserting the eject lever and repeat this command. If still
+    not sufficient, reboot the ThinkPad to have the inserted UltraBay
+    device properly recognized by the system. Then try again.
+
+TRYAGAIN
+    exit 1
+fi
+}
+
+# Get the UltraBay's block device node
+
+ultrabay_dev_node ()
+{
+if [ -e $ULTRABAY_SYSDIR/block ]
+then
+    UDEV_PATH="$(readlink -e $ULTRABAY_SYSDIR/block/*)" || return 1
+    UDEV_NAME="$(udevadm info --query=name --path=$UDEV_PATH)" || return 1
+    export UDEV_NAME
+    echo /dev/$UDEV_NAME
+fi
+}
+
+# Find generic dock interface for UltraBay
+
+ultrabay_dock_interface ()
+{
+DOCKDEV=$(dirname $(/bin/grep -l ata_bay /sys/devices/platform/dock.?/type))
+if [ -z "$DOCKDEV" ] || [ ! -d "$DOCKDEV" ]
+then
+    logger "$SCRIPTNAME": cannot locate ata_bay dock device
+    notify-send -u critical -t 100000 "ThinkPad UltraBay device docking failed" "Cannot locate UltraBay ATA dock device"
+    exit 1
+fi
+}
