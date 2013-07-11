@@ -37,4 +37,8 @@ else
 	echo 'Setting Battery stop charge threshold to 80 percent'
 	tpacpi-bat -s SP 0 80
 fi
+#start shell loop in the background that attemps to sync led state with reality
+#pulseaudio likes to change things from under us when we plug/unplug headphones
+#*sigh*
+nohup /usr/local/sbin/ledstate &
 exit 0

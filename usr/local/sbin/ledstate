@@ -1,0 +1,20 @@
+#!/bin/sh
+INPUT_DEVICE="'Capture'"
+MICMUTE=/sys/devices/platform/thinkpad_acpi/leds/tpacpi::micmute/brightness
+#main mute led doesn't seem to have an interface to turn it on/off
+#this is a bug on launchpad but I doubt there is an easy fix for it that
+#I can see.
+while [ 1 ]
+do
+	sleep 5
+	state=$(cat $MICMUTE)
+	if amixer sget $INPUT_DEVICE,0 | grep '\[on\]' ; then
+		if [ $state -eq 1 ]; then
+			echo 0 >$MICMUTE
+	fi
+	else
+		if [ $state -eq 0 ]; then
+			echo 1 >$MICMUTE
+		fi
+	fi
+done
