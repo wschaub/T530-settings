@@ -64,6 +64,7 @@ validate_md5() {
             echo "FATAL: md5 file for partition $1 does not exist."
             exit 1
         fi
+    else
         echo "backup file for partition $1 does not exist."
         return 1
     fi
