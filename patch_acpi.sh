@@ -1,5 +1,6 @@
 #!/bin/bash
 #patch thinkpad_acpi module and install it.
+set -e
 rm -rf linux-source-3.2.0
 tar xvf /usr/src/linux-source-3.2.0.tar.bz2
 cd linux-source-3.2.0
