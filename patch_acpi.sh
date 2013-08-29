@@ -5,7 +5,6 @@ tar xvf /usr/src/linux-source-3.2.0.tar.bz2
 cd linux-source-3.2.0
 patch -p1 <../acpi.patch
 patch -p1 <../0001-libata-pmp-apply-sil3726-quirks-to-sil3826.patch
-patch -p1 <../0002-libata-pmp-add-back-NO_SRST-to-sil3x26-quirks.patch
 cp -vi /boot/config-`uname -r` .config
 cp /usr/src/linux-headers-`uname -r`/Module.symvers .
 extver=$(uname -r | awk -F \- '{print "-" $2 "-" $3}')
