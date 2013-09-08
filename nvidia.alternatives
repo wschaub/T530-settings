@@ -1,0 +1,3 @@
+i386-linux-gnu_gl_conf         auto     /usr/lib/nvidia-304/alt_ld.so.conf
+nvidia_settings_conf           auto     /usr/lib/nvidia-settings-304/ld.so.conf
+x86_64-linux-gnu_gl_conf       auto     /usr/lib/nvidia-304/ld.so.conf

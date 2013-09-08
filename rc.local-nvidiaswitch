@@ -1,4 +1,9 @@
 #!/bin/sh 
+#this alternative rc.local script does the same thing as the normal T530
+#rc.local, except it switches bwteeen nvidia and intel drivers using 
+#update-alternatives. to use this version make sure you also copy 
+#intel.alternatives and nvidia.alternatives to /etc along with this
+#rc.local script.
 PATH=$PATH:/usr/local/bin
 export PATH
 #
@@ -24,9 +29,7 @@ if [ $? -eq 0 ]; then
 #NVIDIA workarounds
 	service lightdm stop
 	sleep 2
-	(cd /etc/alternatives; rm -f x86_64-linux-gnu_xorg_extra_modules; ln -s nvidia_xorg_modules x86_64-linux-gnu_xorg_extra_modules)
-	(cd /etc/alternatives; rm -f x86_64-linux-gnu_gl_conf; ln -s nvidia_x86_64_gl_conf x86_64-linux-gnu_gl_conf)
-	(cd /etc/alternatives; rm -f i386-linux-gnu_gl_conf; ln -s nvidia_i386_gl_conf i386-linux-gnu_gl_conf)
+	cat /etc/nvidia.alternatives | update-alternatives --set-selections
 	ldconfig
 	service lightdm start
 	sleep 3
@@ -35,12 +38,10 @@ if [ $? -eq 0 ]; then
 	service acpid restart
 else
 #Undo NVIDIA hacks
-	if [ "default_xorg_modules" = "$(readlink /etc/alternatives/x86_64-linux-gnu_xorg_extra_modules)" ]; then
+	if [ "/usr/lib/x86_64-linux-gnu/xorg/x11-extra-modules" = "$(readlink /etc/alternatives/x86_64-linux-gnu_xorg_extra_modules)" ]; then
 		true
 	else
-		(cd /etc/alternatives; rm -f x86_64-linux-gnu_xorg_extra_modules; ln -s default_xorg_modules x86_64-linux-gnu_xorg_extra_modules)
-		(cd /etc/alternatives; rm -f x86_64-linux-gnu_gl_conf; ln -s default_x86_64_gl_conf x86_64-linux-gnu_gl_conf)
-		(cd /etc/alternatives; rm -f i386-linux-gnu_gl_conf; ln -s default_i386_gl_conf i386-linux-gnu_gl_conf)
+		cat /etc/intel.alternatives | update-alternatives --set-selections
 		ldconfig
 		service lightdm stop
 		sleep 1
@@ -63,4 +64,8 @@ if [ $? -ne 0 ]; then
 	tpacpi-bat -s ST 0 40
 	tpacpi-bat -s SP 0 80
 fi
+#start shell loop in the background that attemps to sync led state with reality
+#pulseaudio likes to change things from under us when we plug/unplug headphones
+#*sigh*
+nohup /usr/local/sbin/ledstate &
 exit 0
