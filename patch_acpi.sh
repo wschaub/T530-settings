@@ -22,6 +22,12 @@ sudo cp arch/x86/boot/bzImage /boot/vmlinuz-`uname -r`
 cd ../tpacpi-bat
 git pull
 sudo ./install.pl
+#if we have virtualbox installed just go ahead and re-build
+#the kernel modules.
+if [ -f /etc/init.d/vboxdrv ]; then
+    #make sure we don't bail out the script if this returns nonzero
+    sudo /etc/init.d/vboxdrv setup || true 
+fi
 sudo depmod -a
 sudo update-initramfs -v -u -k `uname -r`
 sudo update-grub
