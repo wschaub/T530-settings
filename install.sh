@@ -78,7 +78,8 @@ if [ $? -eq 1 ]; then
 	sudo apt-get update
 	sudo apt-get install libbsapi policykit-1-fingerprint-gui fingerprint-gui
 #find location of libbsapi.so and copy our version there.
-	bsapi=$(dpkg -L libbsapi | grep libbsapi.so)
+	bsapi=$(dpkg -L libbsapi | grep libbsapi.so$)
+    sudo dpkg-divert --divert $bsapi.orig --rename $bsapi
 	arch=$(uname -m)
 	if [ "$arch" = "x86_64" ]; then
 		sudo cp fingerprint/lib64/libbsapi.so $bsapi
