@@ -1,3 +1,11 @@
+NOTE
+====
+This branch is obsolete as of linux-image-3.2.0-55 the pmp patch
+is now part of the official Ubuntu kernels for precise. 
+
+Unless you want to use an older kernel for some reason, You should
+checkout the master branch instead. 
+
 T530-settings
 =============
 
