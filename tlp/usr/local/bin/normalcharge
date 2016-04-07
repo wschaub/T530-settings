@@ -1,0 +1,9 @@
+#!/bin/sh
+sudo sed -i /etc/default/battery -e 's/CHARGEMODE=.*/CHARGEMODE=normal/'
+. /etc/default/tlp
+sudo tpacpi-bat -s ST 0 $START_CHARGE_THRESH_BAT0
+sudo tpacpi-bat -s SP 0 $STOP_CHARGE_THRESH_BAT0
+sudo tpacpi-bat -s FD 1 0
+sudo tpacpi-bat -s FD 2 0
+sudo tpacpi-bat -s IC 0 0
+sudo service tlp restart

@@ -75,19 +75,26 @@ done
 dpkg -l fingerprint-gui 2>&1 >/dev/null
 if [ $? -eq 1 ]; then
 	sudo apt-add-repository ppa:fingerprint/fingerprint-gui
+    #Needed for 14.04 LTS
+    sudo add-apt-repository ppa:fingerprint/fingerprint-gui-experimental
+    ###
 	sudo apt-get update
 	sudo apt-get install libbsapi policykit-1-fingerprint-gui fingerprint-gui
+#XXX! No longer needed for 14.04LTS or even precise at this point.
+#libbsapi has been updated by the package maintainer and even the udev
+#rules have been fixed by the maintainer also.
+
 #find location of libbsapi.so and copy our version there.
-	bsapi=$(dpkg -L libbsapi | grep libbsapi.so$)
-    sudo dpkg-divert --divert $bsapi.orig --rename $bsapi
-	arch=$(uname -m)
-	if [ "$arch" = "x86_64" ]; then
-		sudo cp fingerprint/lib64/libbsapi.so $bsapi
-	else
-		sudo cp fingerprint/lib/libbsapi.so $bsapi
-	fi
-fi
-sudo cp fingerprint/40-libbsapi.rules /lib/udev/rules.d/
+#	bsapi=$(dpkg -L libbsapi | grep libbsapi.so$)
+#    sudo dpkg-divert --divert $bsapi.orig --rename $bsapi
+#	arch=$(uname -m)
+#	if [ "$arch" = "x86_64" ]; then
+#		sudo cp fingerprint/lib64/libbsapi.so $bsapi
+#	else
+#		sudo cp fingerprint/lib/libbsapi.so $bsapi
+#	fi
+#fi
+#sudo cp fingerprint/40-libbsapi.rules /lib/udev/rules.d/
 #install /usr/local/* stuff including ultrabay_scripts
 sudo cp -r usr/local/share/ultrabay-scripts /usr/local/share/
 sudo cp usr/local/bin/* /usr/local/bin/
@@ -96,11 +103,6 @@ sudo cp usr/local/sbin/* /usr/local/sbin/
 if [ ! -f /etc/udev/rules.d/50-thinkpad-ultrabay.rules ]; then
     sudo /usr/local/sbin/ultrabay_insert -mkrules
 fi
-#patch kernel and install battery utility.
-sudo apt-get install build-essential linux-headers-generic linux-source git patch
-if [ ! -d tpacpi-bat ]; then
-	git clone git://github.com/teleshoes/tpacpi-bat.git	
-fi
-./patch_acpi.sh
+echo "If you wish to install battery management scripts cd tlp and then run setup.sh"
 echo 'Configuration complete please reboot your system.'
 echo 'to make hibernate work you will have to edit /etc/default/grub and set resume=UUID=uuidofyourswapdevicehere on your kernel command line and then run update-grub'

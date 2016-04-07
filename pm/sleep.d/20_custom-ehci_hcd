@@ -5,11 +5,18 @@
 VERSION=1.1
 DEV_LIST=/tmp/usb-dev-list
 DRIVERS_DIR=/sys/bus/pci/drivers
-DRIVERS="ehci xhci" # ehci_hcd, xhci_hcd
+DRIVERS="uhci xhci" # uhci_hcd, xhci_hcd
 HEX="[[:xdigit:]]"
 MAX_BIND_ATTEMPTS=2
 BIND_WAIT=0.1
-
+findvt() {
+    local vt
+    vt=$(ps -ef | grep /usr/bin/X | grep vt | sed 's/.*vt//')
+    if [ -z $vt ]; then
+        vt="7"
+    fi
+    echo -n $vt
+}
 unbindDev() {
     echo -n > $DEV_LIST 2>/dev/null
     for driver in $DRIVERS; do
@@ -19,7 +26,7 @@ unbindDev() {
             echo "$driver $dev" >> $DEV_LIST
         done
     #for bus in $EHCI_BUSES; do
-    echo -n $bus > /sys/bus/pci/drivers/ehci_hcd/unbind
+    echo -n $bus > /sys/bus/pci/drivers/ehci-pci/unbind
     # done
     done
 }
@@ -28,7 +35,7 @@ bindDev() {
     while read driver dev; do
         DDIR=$DRIVERS_DIR/${driver}_hcd
         #for bus in $EHCI_BUSES; do
-        echo -n $bus > /sys/bus/pci/drivers/ehci_hcd/bind
+        echo -n $bus > /sys/bus/pci/drivers/ehci-pci/bind
         #done
             while [ $((MAX_BIND_ATTEMPTS)) -gt 0 ]; do
                 echo -n "$dev" > $DDIR/bind
@@ -43,7 +50,7 @@ bindDev() {
     fi
     rm $DEV_LIST 2>/dev/null
     chvt 1
-    chvt 7
+    chvt `findvt`
 }
 EHCI_BUSES="0000:00:1a.0 0000:00:1d.0"
 case "$1" in

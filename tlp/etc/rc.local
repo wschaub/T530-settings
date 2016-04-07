@@ -1,11 +1,7 @@
 #!/bin/sh 
-#this alternative rc.local script does the same thing as the normal T530
-#rc.local, except it switches bwteeen nvidia and intel drivers using 
-#update-alternatives. to use this version make sure you also copy 
-#intel.alternatives and nvidia.alternatives to /etc along with this
-#rc.local script.
 PATH=$PATH:/usr/local/bin
 export PATH
+. /etc/default/tlp
 #
 # rc.local
 #
@@ -19,35 +15,36 @@ export PATH
 # By default this script does nothing.
 #launch dmeventd
 /sbin/dmeventd
+#XXX! Untested with 14.04 so disabled for now..
 #The nvidia driver somehow fucks with ACPI, if we are running the nvidia driver
 #force reload of the thinkpad_acpi driver.
 #we also need to hack around various shit done by alternatives when we are
 #booted into integrated graphics mode so we can easily switch back and forth
 #by changing the BIOS setting.  This should fix this case too... UGH!
-lsmod | grep -i nvidia 2>&1 >/dev/null
-if [ $? -eq 0 ]; then
+#lsmod | grep -i nvidia 2>&1 >/dev/null
+#if [ $? -eq 0 ]; then
 #NVIDIA workarounds
-	service lightdm stop
-	sleep 2
-	cat /etc/nvidia.alternatives | update-alternatives --set-selections
-	ldconfig
-	service lightdm start
-	sleep 3
-	modprobe -r thinkpad_acpi
-	modprobe thinkpad_acpi
-	service acpid restart
-else
+#	service mdm stop
+#	sleep 2
+#	cat /etc/nvidia.alternatives | update-alternatives --set-selections
+#	ldconfig
+#	service mdm start
+#	sleep 3
+#	modprobe -r thinkpad_acpi
+#	modprobe thinkpad_acpi
+#	service acpid restart
+#else
 #Undo NVIDIA hacks
-	if [ "/usr/lib/x86_64-linux-gnu/xorg/x11-extra-modules" = "$(readlink /etc/alternatives/x86_64-linux-gnu_xorg_extra_modules)" ]; then
-		true
-	else
-		cat /etc/intel.alternatives | update-alternatives --set-selections
-		ldconfig
-		service lightdm stop
-		sleep 1
-		service lightdm start
-	fi
-fi
+#	if [ "/usr/lib/x86_64-linux-gnu/xorg/x11-extra-modules" = "$(readlink /etc/alternatives/x86_64-linux-gnu_xorg_extra_modules)" ]; then
+#		true
+#	else
+#		cat /etc/intel.alternatives | update-alternatives --set-selections
+#		ldconfig
+#		service mdm stop
+#		sleep 1
+#		service mdm start
+#	fi
+#fi
 #mute microphone on boot
 INPUT_DEVICE="'Capture'"
 MICMUTE=/sys/devices/platform/thinkpad_acpi/leds/tpacpi::micmute/brightness
@@ -59,10 +56,12 @@ else
 	echo 1 > $MICMUTE
 fi
 #Set up battery charge threshold only if it diverges from the norm
-testbat
-if [ $? -ne 0 ]; then
-	tpacpi-bat -s ST 0 40
-	tpacpi-bat -s SP 0 80
+if [ "$CHARGEMODE" = "normal" ]; then
+    testbat
+    if [ $? -ne 0 ]; then
+        tpacpi-bat -s ST 0 $START_CHARGE_THRESH_BAT0
+        tpacpi-bat -s SP 0 $STOP_CHARGE_THRESH_BAT0
+    fi
 fi
 #start shell loop in the background that attemps to sync led state with reality
 #pulseaudio likes to change things from under us when we plug/unplug headphones

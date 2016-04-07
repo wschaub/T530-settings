@@ -1,0 +1,5 @@
+The setup script here will install the TLP utility http://linrunner.de/en/tlp/tlp.html and the tpacpi-bat utility.
+It will also install a modified rc.local script, modified /etc/default/tlp file and a state file in /etc/default/battery
+There will be two new commands installed into /usr/local/bin: 
+* normalcharge -- Sets charge thresholds to 40 percent to start charging and 80 percent to stop charge.
+* fullcharge -- Reset charge thresholds to always charge to 100%

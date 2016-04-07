@@ -1,2 +1,7 @@
 event=ibm/hotkey HKEY 00000080 0000101b
 action=/etc/acpi/lenovo-mutemic.sh
+# I haven't figured out  how to get the mic mute button to work under 14.04 just yet but
+#this extra event let's you use the "IBM" or "ThinkPad" 
+#button that is right next to it to do the same thing It's just a recessed black button on the T530 keyboard.
+event=button/prog1 PROG1 00000080 00000000 K
+action=/etc/acpi/lenovo-mutemic.sh
